@@ -9,37 +9,50 @@ namespace SortModSettings
     public class Mod : LoadingExtensionBase, IUserMod
     {
         private static int itemsToIgnoreCount = 10; //these are the regular menu items like graphics, gameplay etc.
+        private bool patchesApplied = false;
 
         public string Name => "Sort Mod Settings";
         public string Description => "Sorts the 'Mod Settings' by name.";
 
-        public override void OnLevelLoaded(LoadMode mode)
+        public void OnEnabled()
         {
-            var optionsMainPanel = UIView.library.Get<OptionsMainPanel>("OptionsPanel");
-            SortCategories(optionsMainPanel);
-            ReplaceSetContainerCategoryMethod(optionsMainPanel);
+            if (patchesApplied)
+            {
+                return;
+            }
+
+            var harmony = HarmonyInstance.Create("egi.citiesskylinesmods.sortmodsettings");
+            ApplyHarmonyPatches(harmony);
         }
 
-        private void SortCategories(OptionsMainPanel optionsMainPanel)
+        public void OnDisabled()
         {
-            var categories = optionsMainPanel.GetType()
-                                             .GetField("m_Categories", BindingFlags.Instance | BindingFlags.NonPublic)
-                                             .GetValue(optionsMainPanel) as UIListBox;
+            //TODO: can be done once harmony will support the unpatch feature in the next version.
+        }
+
+        public void ApplyHarmonyPatches(HarmonyInstance harmony)
+        {
+            var createCategories = typeof(OptionsMainPanel).GetMethod("CreateCategories", BindingFlags.Instance | BindingFlags.NonPublic);
+            var createCategoriesPostfix = typeof(Mod).GetMethod(nameof(CreateCategoriesPostfix), BindingFlags.Static | BindingFlags.Public);
+            harmony.Patch(createCategories, null, new HarmonyMethod(createCategoriesPostfix));
+
+            var setContainerCategory = typeof(OptionsMainPanel).GetMethod("SetContainerCategory", BindingFlags.Instance | BindingFlags.NonPublic);
+            var setContainerCategoryPrefix = typeof(Mod).GetMethod(nameof(SetContainerCategoryPrefix), BindingFlags.Static | BindingFlags.Public);
+            harmony.Patch(setContainerCategory, new HarmonyMethod(setContainerCategoryPrefix), null);
+
+            patchesApplied = true;
+        }
+
+        public static void CreateCategoriesPostfix(OptionsMainPanel __instance)
+        {
+            var categories = __instance.GetType().GetField("m_Categories", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(__instance) as UIListBox;
 
             var defaultCategories = categories.items.Take(itemsToIgnoreCount);
             var modCategories = categories.items.Skip(itemsToIgnoreCount).Where(c => !string.IsNullOrEmpty(c)).OrderBy(c => c);
             categories.items = defaultCategories.Concat(modCategories).ToArray();
         }
 
-        private void ReplaceSetContainerCategoryMethod(OptionsMainPanel optionsMainPanel)
-        {
-            var harmony = HarmonyInstance.Create("egi.citiesskylinesmods.sortmodsettings");
-            var original = optionsMainPanel.GetType().GetMethod("SetContainerCategory", BindingFlags.Instance | BindingFlags.NonPublic);
-            var replacement = typeof(Mod).GetMethod(nameof(SetContainerCategory), BindingFlags.Static | BindingFlags.Public);
-            harmony.Patch(original, new HarmonyMethod(replacement), null);
-        }
-
-        public static bool SetContainerCategory(OptionsMainPanel __instance, int index)
+        public static bool SetContainerCategoryPrefix(OptionsMainPanel __instance, int index)
         {
             //default behaviour for the regular menu items like graphics, gameplay etc.
             if (index < itemsToIgnoreCount)
@@ -48,12 +61,12 @@ namespace SortModSettings
             }
 
             var categories = __instance.GetType()
-                 .GetField("m_Categories", BindingFlags.Instance | BindingFlags.NonPublic)
-                 .GetValue(__instance) as UIListBox;
+                .GetField("m_Categories", BindingFlags.Instance | BindingFlags.NonPublic)
+                .GetValue(__instance) as UIListBox;
 
             var categoryContainer = __instance.GetType()
-                        .GetField("m_CategoriesContainer", BindingFlags.Instance | BindingFlags.NonPublic)
-                        .GetValue(__instance) as UITabContainer;
+                .GetField("m_CategoriesContainer", BindingFlags.Instance | BindingFlags.NonPublic)
+                .GetValue(__instance) as UITabContainer;
 
             var selectedModName = categories.items[index];
             var selectedModIndexAndContainer = categoryContainer.components.FirstOrDefault(c => c.name == selectedModName);
@@ -61,7 +74,7 @@ namespace SortModSettings
             //default behaviour if name was not found
             if (selectedModIndexAndContainer == null)
             {
-                return true; 
+                return true;
             }
 
             var selectedModIndex = categoryContainer.components.IndexOf(selectedModIndexAndContainer);
