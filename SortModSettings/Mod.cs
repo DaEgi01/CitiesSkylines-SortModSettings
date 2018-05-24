@@ -9,38 +9,33 @@ namespace SortModSettings
     public class Mod : LoadingExtensionBase, IUserMod
     {
         private static int itemsToIgnoreCount = 10; //these are the regular menu items like graphics, gameplay etc.
-        private bool patchesApplied = false;
+
+        private HarmonyInstance harmony;
+        private MethodInfo createCategoriesOriginal;
+        private MethodInfo createCategoriesPostfix;
+        private MethodInfo setContainerCategoryOriginal;
+        private MethodInfo setContainerCategoryPrefix;
 
         public string Name => "Sort Mod Settings";
         public string Description => "Sorts the 'Mod Settings' by name.";
 
         public void OnEnabled()
         {
-            if (patchesApplied)
-            {
-                return;
-            }
+            harmony = HarmonyInstance.Create("egi.citiesskylinesmods.sortmodsettings");
 
-            var harmony = HarmonyInstance.Create("egi.citiesskylinesmods.sortmodsettings");
-            ApplyHarmonyPatches(harmony);
+            createCategoriesOriginal = typeof(OptionsMainPanel).GetMethod("CreateCategories", BindingFlags.Instance | BindingFlags.NonPublic);
+            createCategoriesPostfix = typeof(Mod).GetMethod(nameof(CreateCategoriesPostfix), BindingFlags.Static | BindingFlags.Public);
+            harmony.Patch(createCategoriesOriginal, null, new HarmonyMethod(createCategoriesPostfix));
+
+            setContainerCategoryOriginal = typeof(OptionsMainPanel).GetMethod("SetContainerCategory", BindingFlags.Instance | BindingFlags.NonPublic);
+            setContainerCategoryPrefix = typeof(Mod).GetMethod(nameof(SetContainerCategoryPrefix), BindingFlags.Static | BindingFlags.Public);
+            harmony.Patch(setContainerCategoryOriginal, new HarmonyMethod(setContainerCategoryPrefix), null);
         }
 
         public void OnDisabled()
         {
-            //TODO: can be done once harmony will support the unpatch feature in the next version.
-        }
-
-        public void ApplyHarmonyPatches(HarmonyInstance harmony)
-        {
-            var createCategories = typeof(OptionsMainPanel).GetMethod("CreateCategories", BindingFlags.Instance | BindingFlags.NonPublic);
-            var createCategoriesPostfix = typeof(Mod).GetMethod(nameof(CreateCategoriesPostfix), BindingFlags.Static | BindingFlags.Public);
-            harmony.Patch(createCategories, null, new HarmonyMethod(createCategoriesPostfix));
-
-            var setContainerCategory = typeof(OptionsMainPanel).GetMethod("SetContainerCategory", BindingFlags.Instance | BindingFlags.NonPublic);
-            var setContainerCategoryPrefix = typeof(Mod).GetMethod(nameof(SetContainerCategoryPrefix), BindingFlags.Static | BindingFlags.Public);
-            harmony.Patch(setContainerCategory, new HarmonyMethod(setContainerCategoryPrefix), null);
-
-            patchesApplied = true;
+            harmony.RemovePatch(createCategoriesOriginal, createCategoriesPostfix);
+            harmony.RemovePatch(setContainerCategoryOriginal, setContainerCategoryPrefix);
         }
 
         public static void CreateCategoriesPostfix(OptionsMainPanel __instance)
@@ -52,33 +47,29 @@ namespace SortModSettings
             categories.items = defaultCategories.Concat(modCategories).ToArray();
         }
 
-        public static bool SetContainerCategoryPrefix(OptionsMainPanel __instance, int index)
+        public static bool SetContainerCategoryPrefix(OptionsMainPanel __instance, UIListBox ___m_Categories, UITabContainer ___m_CategoriesContainer, int index)
         {
             //default behaviour for the regular menu items like graphics, gameplay etc.
             if (index < itemsToIgnoreCount)
-            {
                 return true;
-            }
 
-            var categories = __instance.GetType()
-                .GetField("m_Categories", BindingFlags.Instance | BindingFlags.NonPublic)
-                .GetValue(__instance) as UIListBox;
+            //var categories = __instance.GetType()
+            //    .GetField("m_Categories", BindingFlags.Instance | BindingFlags.NonPublic)
+            //    .GetValue(__instance) as UIListBox;
 
-            var categoryContainer = __instance.GetType()
-                .GetField("m_CategoriesContainer", BindingFlags.Instance | BindingFlags.NonPublic)
-                .GetValue(__instance) as UITabContainer;
+            //var categoryContainer = __instance.GetType()
+            //    .GetField("m_CategoriesContainer", BindingFlags.Instance | BindingFlags.NonPublic)
+            //    .GetValue(__instance) as UITabContainer;
 
-            var selectedModName = categories.items[index];
-            var selectedModIndexAndContainer = categoryContainer.components.FirstOrDefault(c => c.name == selectedModName);
+            var selectedModName = ___m_Categories.items[index];
+            var selectedModIndexAndContainer = ___m_CategoriesContainer.components.FirstOrDefault(c => c.name == selectedModName);
 
             //default behaviour if name was not found
             if (selectedModIndexAndContainer == null)
-            {
                 return true;
-            }
 
-            var selectedModIndex = categoryContainer.components.IndexOf(selectedModIndexAndContainer);
-            categoryContainer.selectedIndex = selectedModIndex;
+            var selectedModIndex = ___m_CategoriesContainer.components.IndexOf(selectedModIndexAndContainer);
+            ___m_CategoriesContainer.selectedIndex = selectedModIndex;
 
             return false;
         }
