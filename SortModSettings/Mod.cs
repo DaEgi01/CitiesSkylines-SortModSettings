@@ -53,14 +53,6 @@ namespace SortModSettings
             if (index < itemsToIgnoreCount)
                 return true;
 
-            //var categories = __instance.GetType()
-            //    .GetField("m_Categories", BindingFlags.Instance | BindingFlags.NonPublic)
-            //    .GetValue(__instance) as UIListBox;
-
-            //var categoryContainer = __instance.GetType()
-            //    .GetField("m_CategoriesContainer", BindingFlags.Instance | BindingFlags.NonPublic)
-            //    .GetValue(__instance) as UITabContainer;
-
             var selectedModName = ___m_Categories.items[index];
             var selectedModIndexAndContainer = ___m_CategoriesContainer.components.FirstOrDefault(c => c.name == selectedModName);
 
