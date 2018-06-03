@@ -36,6 +36,12 @@ namespace SortModSettings
         {
             harmony.RemovePatch(createCategoriesOriginal, createCategoriesPostfix);
             harmony.RemovePatch(setContainerCategoryOriginal, setContainerCategoryPrefix);
+
+            harmony = null;
+            createCategoriesOriginal = null;
+            createCategoriesPostfix = null;
+            setContainerCategoryOriginal = null;
+            setContainerCategoryPrefix = null;
         }
 
         public static void CreateCategoriesPostfix(OptionsMainPanel __instance)
