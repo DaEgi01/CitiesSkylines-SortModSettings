@@ -8,25 +8,25 @@ namespace SortModSettings
 {
     public class Mod : LoadingExtensionBase, IUserMod
     {
-        private readonly string harmonyId = "egi.citiesskylinesmods.sortmodsettings";
-        private HarmonyInstance harmonyInstance;
+        private readonly string _harmonyId = "egi.citiesskylinesmods.sortmodsettings";
+        private HarmonyInstance _harmonyInstance;
 
         public string Name => "Sort Mod Settings";
         public string Description => "Sorts the 'Mod Settings' by name.";
 
         public void OnEnabled()
         {
-            harmonyInstance = HarmonyInstance.Create(harmonyId);
+            _harmonyInstance = HarmonyInstance.Create(_harmonyId);
 
             var createCategoriesOriginal = typeof(OptionsMainPanel).GetMethod("CreateCategories", BindingFlags.Instance | BindingFlags.NonPublic);
             var createCategoriesPostfix = typeof(Mod).GetMethod(nameof(CreateCategoriesPostfix), BindingFlags.Static | BindingFlags.Public);
-            harmonyInstance.Patch(createCategoriesOriginal, null, new HarmonyMethod(createCategoriesPostfix));
+            _harmonyInstance.Patch(createCategoriesOriginal, null, new HarmonyMethod(createCategoriesPostfix));
         }
 
         public void OnDisabled()
         {
-            harmonyInstance.UnpatchAll(harmonyId);
-            harmonyInstance = null;
+            _harmonyInstance.UnpatchAll(_harmonyId);
+            _harmonyInstance = null;
         }
 
         public static void CreateCategoriesPostfix(OptionsMainPanel __instance)
