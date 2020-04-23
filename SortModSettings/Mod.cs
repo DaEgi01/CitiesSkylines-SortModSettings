@@ -1,8 +1,11 @@
-﻿using ColossalFramework.UI;
+﻿using ColossalFramework;
+using ColossalFramework.Plugins;
 using Harmony;
 using ICities;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 
 namespace SortModSettings
 {
@@ -18,9 +21,9 @@ namespace SortModSettings
         {
             _harmonyInstance = HarmonyInstance.Create(_harmonyId);
 
-            var createCategoriesOriginal = typeof(OptionsMainPanel).GetMethod("CreateCategories", BindingFlags.Instance | BindingFlags.NonPublic);
-            var createCategoriesPostfix = typeof(Mod).GetMethod(nameof(CreateCategoriesPostfix), BindingFlags.Static | BindingFlags.Public);
-            _harmonyInstance.Patch(createCategoriesOriginal, null, new HarmonyMethod(createCategoriesPostfix));
+            var addUserModsOriginal = typeof(OptionsMainPanel).GetMethod("AddUserMods", BindingFlags.NonPublic | BindingFlags.Instance);
+            var addUserModsTranspiler = typeof(Mod).GetMethod(nameof(AddUserModsTranspiler), BindingFlags.Public | BindingFlags.Static);
+            _harmonyInstance.Patch(addUserModsOriginal, null, null, new HarmonyMethod(addUserModsTranspiler));
         }
 
         public void OnDisabled()
@@ -29,34 +32,36 @@ namespace SortModSettings
             _harmonyInstance = null;
         }
 
-        public static void CreateCategoriesPostfix(OptionsMainPanel __instance)
+        public static IEnumerable<CodeInstruction> AddUserModsTranspiler(IEnumerable<CodeInstruction> codeInstructions)
         {
-            var categories = typeof(OptionsMainPanel)
-                .GetField("m_Categories", BindingFlags.Instance | BindingFlags.NonPublic)
-                .GetValue(__instance) as UIListBox;
+            var hookOpCode = OpCodes.Callvirt;
+            var hookOperand = typeof(PluginManager)
+                .GetMethod("GetPluginsInfo", BindingFlags.Public | BindingFlags.Instance);
 
-            var m_FilteredItems = typeof(UIListBox)
-                .GetField("m_FilteredItems", BindingFlags.NonPublic | BindingFlags.Instance)
-                .GetValue(categories) as int[];
+            var replacementMethod = typeof(Mod)
+                .GetMethod(nameof(GetPluginsInfoInOrder), BindingFlags.Public | BindingFlags.Static);
 
-            var selectedIndex = categories.selectedIndex;
+            var instructions = codeInstructions.ToList();
+            for (int i = 0; i < instructions.Count; i++)
+            {
+                var instruction = instructions[i];
+                if (instruction.opcode == hookOpCode && instruction.operand == hookOperand)
+                {
+                    instruction.opcode = OpCodes.Call;
+                    instruction.operand = replacementMethod;
 
-            //Spaces, Graphics, Gameplay etc.
-            var itemsToIgnoreCount = 10;
+                    instructions.RemoveAt(i - 1);
+                    break;
+                }
+            }
 
-            var defaultCategories = categories
-                .items
-                .Take(itemsToIgnoreCount);
-            var modCategories = categories
-                .items
-                .Skip(itemsToIgnoreCount)
-                .Where(c => !string.IsNullOrEmpty(c))
-                .OrderBy(c => c);
-            categories.items = defaultCategories //this will change selected index
-                .Concat(modCategories)
-                .ToArray();
-
-            categories.selectedIndex = selectedIndex;
+            return instructions;
         }
+
+        public static IEnumerable<PluginManager.PluginInfo> GetPluginsInfoInOrder() => 
+            Singleton<PluginManager>
+                .instance
+                .GetPluginsInfo()
+                .OrderBy(p => ((IUserMod)p.userModInstance).Name);
     }
 }
