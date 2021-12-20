@@ -62,6 +62,7 @@ namespace SortModSettings
             Singleton<PluginManager>
                 .instance
                 .GetPluginsInfo()
+                .Where(p => p?.userModInstance as IUserMod != null)
                 .OrderBy(p => ((IUserMod)p.userModInstance).Name);
     }
 }
