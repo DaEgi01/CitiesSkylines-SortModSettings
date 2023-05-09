@@ -12,17 +12,19 @@ namespace SortModSettings
 	public static class Patcher
 	{
 		private const string _harmonyId = "egi.citiesskylinesmods.sortmodsettings";
-		private static bool _patched = false;
+		private static bool _patched;
 
 		public static void PatchAll()
 		{
 			if (_patched)
 				return;
 
-			var addUserModsOriginal = typeof(OptionsMainPanel).GetMethod("AddUserMods", BindingFlags.NonPublic | BindingFlags.Instance);
-			var addUserModsTranspiler = typeof(Patcher).GetMethod(nameof(AddUserModsTranspiler), BindingFlags.Public | BindingFlags.Static);
+			MethodInfo addUserModsOriginal = typeof(OptionsMainPanel)
+				.GetMethod("AddUserMods", BindingFlags.NonPublic | BindingFlags.Instance);
+			MethodInfo addUserModsTranspiler = typeof(Patcher)
+				.GetMethod(nameof(AddUserModsTranspiler), BindingFlags.Public | BindingFlags.Static);
 
-			var harmony = new Harmony(_harmonyId);
+			Harmony harmony = new(_harmonyId);
 			harmony.Patch(addUserModsOriginal, null, null, new HarmonyMethod(addUserModsTranspiler));
 
 			_patched = true;
@@ -33,7 +35,7 @@ namespace SortModSettings
 			if (!_patched)
 				return;
 
-			var harmony = new Harmony(_harmonyId);
+			Harmony harmony = new(_harmonyId);
 			harmony.UnpatchAll(_harmonyId);
 
 			_patched = false;
@@ -41,18 +43,16 @@ namespace SortModSettings
 
 		public static IEnumerable<CodeInstruction> AddUserModsTranspiler(IEnumerable<CodeInstruction> codeInstructions)
 		{
-			var hookOpCode = OpCodes.Callvirt;
-			var hookOperand = typeof(PluginManager)
+			MethodInfo hookOperand = typeof(PluginManager)
 				.GetMethod("GetPluginsInfo", BindingFlags.Public | BindingFlags.Instance);
-
-			var replacementMethod = typeof(Patcher)
+			MethodInfo replacementMethod = typeof(Patcher)
 				.GetMethod(nameof(GetPluginsInfoInOrder), BindingFlags.Public | BindingFlags.Static);
 
 			var instructions = codeInstructions.ToList();
 			for (int i = 0; i < instructions.Count; i++)
 			{
-				var instruction = instructions[i];
-				if (instruction.opcode == hookOpCode && instruction.operand == hookOperand)
+				CodeInstruction instruction = instructions[i];
+				if (instruction.opcode == OpCodes.Callvirt && instruction.operand == hookOperand)
 				{
 					instruction.opcode = OpCodes.Call;
 					instruction.operand = replacementMethod;
@@ -69,7 +69,7 @@ namespace SortModSettings
 			Singleton<PluginManager>
 				.instance
 				.GetPluginsInfo()
-				.Where(p => p?.userModInstance as IUserMod != null)
+				.Where(p => p?.userModInstance is IUserMod)
 				.OrderBy(p => ((IUserMod)p.userModInstance).Name);
 	}
 }
